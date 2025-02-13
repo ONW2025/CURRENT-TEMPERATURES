@@ -1,0 +1,625 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Weather Information</title>
+  <!-- Include html2canvas library -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Overpass:wght@900&display=swap');
+
+    /* Use imported font for everything */
+    * {
+      font-family: 'Overpass Black', sans-serif !important;
+    }
+
+    body {
+      margin: 0;
+      background: #000;
+      overflow: auto;
+    }
+
+    /* The #map-container is fixed at our base resolution (e.g., 1920×1080)
+       and then scaled to 85% of the viewport width */
+    #map-container {
+      position: relative;
+      width: 1920px;
+      height: 1080px;
+      margin: 0 auto;
+      transform: scale(calc(85vw / 1920));
+      transform-origin: top center;
+    }
+
+    /* The map image fills the container */
+    #map-image {
+      width: 100%;
+      height: 100%;
+      display: block;
+    }
+
+    /* Overlay sits over the map image */
+    #overlay {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      pointer-events: none;
+    }
+
+    /* Weather info container and timestamp inside the overlay */
+    #weather-info-container {
+      position: relative;
+      width: 100%;
+      height: 100%;
+      pointer-events: auto;
+    }
+
+    /* Adjust timestamp positioning using percentages */
+    #timestamp {
+      position: absolute;
+      bottom: 5%;
+      left: 5%;
+      font-family: 'Overpass', sans-serif;
+      font-size: 1.5em;
+      color: white;
+      text-shadow: 0 0 10px rgba(0,0,0,0.8);
+      background-color: transparent;
+      padding: 10px 20px;
+      border-radius: 5px;
+      text-align: left;
+      pointer-events: auto;
+    }
+
+    /* --- Weather card styling --- */
+    .weather-card {
+      font-size: 1.5em;
+      text-shadow: 3px 1px 1px rgba(0,0,0,0.7);
+      color: white;
+      padding: 20px;
+      margin: 10px;
+      text-align: center;
+      background: rgba(0,0,0,0);
+      border-radius: 10px;
+      position: absolute;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: flex-start;
+      width: 200px;
+      height: auto;
+    }
+
+    .station-name-card {
+      font-size: 1em;
+      text-shadow: 1px 1px 10px rgba(0,0,0,0.8), 1px 10px 10px rgba(0,0,0,0.9);
+      margin-bottom: 10px;
+      position: relative;
+      overflow: visible;
+    }
+    .station-text {
+      position: relative;
+      z-index: 1;
+    }
+    .station-name-card .edit-temp-btn,
+    .station-name-card .temp-edit-input {
+      display: none;
+    }
+    .station-name-card:hover .edit-temp-btn,
+    .station-name-card:hover .temp-edit-input {
+      display: inline-block;
+    }
+    .station-name-card .edit-temp-btn {
+      position: absolute;
+      top: 0;
+      right: 0;
+      z-index: 2;
+      background-color: rgba(255,255,255,0.3);
+      border: 1px solid white;
+      color: white;
+      cursor: pointer;
+      padding: 3px 6px;
+      font-size: 0.8em;
+    }
+    .station-name-card .temp-edit-input {
+      position: absolute;
+      top: 100%;
+      right: 0;
+      z-index: 2;
+      margin-top: 2px;
+      padding: 5px;
+      border: 1px solid #ccc;
+      font-size: 0.9em;
+      text-align: center;
+      width: 60px;
+    }
+    .temperature-card {
+      font-family: 'Roboto', sans-serif;
+      font-size: 2em;
+      text-shadow: 0 0 10px rgba(0,0,0,0.8), 0 0 10px rgba(0,0,0,0.9);
+      color: white;
+      margin-top: 25px;
+      position: relative;
+    }
+    .temperature-card .degree-symbol {
+      font-size: 0.8em;
+      vertical-align: 8px;
+      margin-left: -12px;
+      position: relative;
+    }
+    .rename-input {
+      background: rgba(255,255,255,0.7);
+      border: none;
+      padding: 5px;
+      margin-top: 10px;
+      width: 100%;
+      font-size: 1em;
+      text-align: center;
+    }
+  </style>
+</head>
+<body>
+
+  <!-- The fixed-dimension container that holds the entire project -->
+  <div id="map-container">
+    <img id="map-image" src="blank map tyler (1).png" alt="Map" crossorigin="anonymous" />
+    <div id="overlay">
+      <div id="weather-info-container"></div>
+      <div id="timestamp"></div>
+    </div>
+  </div>
+
+  <script>
+    (function() {
+      /********** BEGIN ORIGINAL SCRIPT CODE **********/
+      const apiKey = '483ba06db3ac4c91bba06db3ac2c91e3';
+      const stationIds = [
+        'KOHCHILL102', 'KOHCOLUM839', 'KOHDAYTO48', 'KOHCINCI470', 'KOHGALLI12',
+        'KOHTOLED157', 'KOHCLEVE358', 'KOHYOUNG19', 'KOHSAINT20', 'KOHMARIE95',
+        'KOHDEFIA24', 'KOHCELIN50', 'KOHLIMA26', 'KOHFINDL57', 'KOHBELLE16',
+        'KOHMARIO107', 'KOHWILMI89', 'KOHGEORG3', 'KOHPORTS28', 'KOHLOGAN27',
+        'KOHZANES81', 'KOHMOUNT134', 'KOHMANSF8', 'KOHSANDU69', 'KOHASHTA21',
+        'KOHAKRON234', 'KOHCANTO106', 'KOHCOSHO14'
+      ];
+      const stationNames = {
+        'KOHCHILL102': 'Chillicothe',
+        'KOHCOLUM839': 'Columbus',
+        'KOHDAYTO48': 'Dayton',
+        'KOHCINCI470': 'Cincinnati',
+        'KOHGALLI12': 'Gallipolis',
+        'KOHTOLED157': 'Toledo',
+        'KOHCLEVE358': 'Cleveland',
+        'KOHYOUNG19': 'Youngstown',
+        'KOHSAINT20': 'St. Clairsville',
+        'KOHMARIE95': 'Marietta',
+        'KOHDEFIA24': 'Defiance',
+        'KOHCELIN50': 'Celina',
+        'KOHLIMA26': 'Lima',
+        'KOHFINDL57': 'Findlay',
+        'KOHBELLE16': 'Bellefontaine',
+        'KOHMARIO107': 'Marion',
+        'KOHWILMI89': 'Wilmington',
+        'KOHGEORG3': 'Georgetown',
+        'KOHPORTS28': 'Portsmouth',
+        'KOHLOGAN27': 'Logan',
+        'KOHZANES81': 'Zanesville',
+        'KOHMOUNT134': 'Mt. Vernon',
+        'KOHMANSF8': 'Mansfield',
+        'KOHSANDU69': 'Sandusky',
+        'KOHASHTA21': 'Ashtabula',
+        'KOHAKRON234': 'Akron',
+        'KOHCANTO106': 'Canton',
+        'KOHCOSHO14': 'Coshocton'
+      };
+      const stationTemperatures = {};
+      const manualTemperatures = {};
+      const stationPositions = {
+        'KOHCHILL102': { top: '70%', left: '39%' },
+        'KOHCOLUM839': { top: '54%', left: '38.75%' },
+        'KOHDAYTO48': { top: '58.5%', left: '23.75%' },
+        'KOHCINCI470': { top: '74.5%', left: '19.5%' },
+        'KOHGALLI12': { top: '84.5%', left: '48.5%' },
+        'KOHTOLED157': { top: '7.5%', left: '31.5%' },
+        'KOHCLEVE358': { top: '12.0%', left: '55%' },
+        'KOHYOUNG19': { top: '23%', left: '68.5%' },
+        'KOHSAINT20': { top: '50%', left: '65%' },
+        'KOHMARIE95': { top: '67%', left: '58%' },
+        'KOHDEFIA24': { top: '17%', left: '22%' },
+        'KOHCELIN50': { top: '37%', left: '19%' },
+        'KOHLIMA26': { top: '32.5%', left: '25%' },
+        'KOHFINDL57': { top: '23%', left: '31%' },
+        'KOHBELLE16': { top: '42%', left: '29%' },
+        'KOHMARIO107': { top: '36%', left: '36.75%' },
+        'KOHWILMI89': { top: '68%', left: '29%' },
+        'KOHGEORG3': { top: '82.5%', left: '26%' },
+        'KOHPORTS28': { top: '85%', left: '39%' },
+        'KOHLOGAN27': { top: '65%', left: '46.5%' },
+        'KOHZANES81': { top: '54%', left: '51.5%' },
+        'KOHMOUNT134': { top: '42%', left: '45.5%' },
+        'KOHMANSF8': { top: '31%', left: '44.5%' },
+        'KOHSANDU69': { top: '13%', left: '42.75%' },
+        'KOHASHTA21': { top: '2%', left: '67%' },
+        'KOHAKRON234': { top: '23%', left: '57%' },
+        'KOHCANTO106': { top: '30.5%', left: '59%' },
+        'KOHCOSHO14': { top: '44.5%', left: '53%' }
+      };
+      const disabledStations = [
+        'STATION3', 'STATION4', 'STATION5', 'STATION6', 'STATION7', 'STATION8', 'STATION9', 'STATION10',
+        'STATION11', 'STATION12', 'STATION13', 'STATION14', 'STATION15', 'STATION16', 'STATION17', 'STATION18',
+        'STATION19', 'STATION20', 'STATION21', 'STATION22', 'STATION23', 'STATION24', 'STATION25', 'STATION26',
+        'STATION27', 'STATION28'
+      ];
+      function getTemperatureColor(temp) {
+        if (temp <= 0) return 'rgb(244, 101, 255)';
+        if (temp <= 9) return 'rgb(184, 0, 200)';
+        if (temp <= 19) return 'rgb(0, 32, 224)';
+        if (temp <= 29) return 'rgb(0, 114, 255)';
+        if (temp <= 39) return 'rgb(67, 255, 253)';
+        if (temp <= 49) return 'rgb(156, 255, 0)';
+        if (temp <= 59) return 'rgb(255, 252, 0)';
+        if (temp <= 69) return 'rgb(255, 156, 0)';
+        if (temp <= 79) return 'rgb(255, 90, 0)';
+        if (temp <= 89) return 'rgb(255, 0, 0)';
+        if (temp <= 99) return 'rgb(160, 0, 0)';
+        return 'rgb(255, 129, 129)';
+      }
+      const degreeSymbolPosition = { top: '5px', left: '2px' };
+      const temperatureCardPosition = { top: '0px' };
+      function fetchWeather(stationId) {
+        const apiUrl = `https://api.weather.com/v2/pws/observations/current?stationId=${stationId}&format=json&units=e&apiKey=${apiKey}`;
+        return fetch(apiUrl)
+          .then(response => {
+            if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
+            return response.json();
+          })
+          .then(data => {
+            const observation = data.observations[0];
+            const temp = observation.imperial.temp;
+            stationTemperatures[stationId] = { value: temp, color: getTemperatureColor(temp) };
+          })
+          .catch(error => {
+            console.error(`Error fetching weather for station ${stationId}:`, error);
+            stationTemperatures[stationId] = { value: 'N/A', color: 'white' };
+          });
+      }
+      async function updateWeather() {
+        const weatherPromises = stationIds
+          .filter(id => !disabledStations.includes(id))
+          .map(id => fetchWeather(id));
+        await Promise.all(weatherPromises);
+        stationIds.forEach((stationId, index) => {
+          if (disabledStations.includes(stationId)) return;
+          const stationNameElement = document.getElementById(`station-name-${index + 1}`);
+          const temperatureElement = document.getElementById(`temperature-${index + 1}`);
+          const { value, color } = stationTemperatures[stationId] || {};
+          const displayValue = (manualTemperatures[stationId] !== undefined)
+            ? manualTemperatures[stationId]
+            : (value || 'Loading...');
+          stationNameElement.innerHTML = `
+            <div class="station-name-card">
+              <span class="station-text">${stationNames[stationId]}</span>
+              <button class="edit-temp-btn">Edit</button>
+              <input type="text" class="temp-edit-input" placeholder="Enter temp" />
+            </div>
+          `;
+          temperatureElement.innerHTML = `
+            <div class="temperature-card" style="color: ${color}; top: ${temperatureCardPosition.top};">
+              <span class="temp-value">${displayValue}</span>
+              <span class="degree-symbol" style="top: ${degreeSymbolPosition.top}; left: ${degreeSymbolPosition.left};">°</span>
+            </div>
+          `;
+          const { top, left } = stationPositions[stationId];
+          stationNameElement.style.top = top;
+          stationNameElement.style.left = left;
+          temperatureElement.style.top = top;
+          temperatureElement.style.left = left;
+          const editButton = stationNameElement.querySelector('.edit-temp-btn');
+          const inputField = stationNameElement.querySelector('.temp-edit-input');
+          const tempCard = temperatureElement.firstElementChild;
+          const tempValueSpan = tempCard.querySelector('.temp-value');
+          editButton.addEventListener('click', () => {
+            inputField.style.display = 'inline-block';
+            inputField.value = tempValueSpan.textContent;
+            inputField.focus();
+          });
+          inputField.addEventListener('blur', () => {
+            let newTemp = inputField.value.trim();
+            if (newTemp !== '') {
+              manualTemperatures[stationId] = newTemp;
+              tempValueSpan.textContent = newTemp;
+              let numericTemp = parseFloat(newTemp);
+              if (!isNaN(numericTemp)) {
+                let newColor = getTemperatureColor(numericTemp);
+                tempCard.style.color = newColor;
+              }
+            }
+            inputField.style.display = 'none';
+          });
+          inputField.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter') {
+              inputField.blur();
+            }
+          });
+        });
+      }
+      function updateTimestamp() {
+        const timestampElement = document.getElementById('timestamp');
+        const now = new Date();
+        const dayOfWeek = now.toLocaleDateString('en-US', { weekday: 'long' });
+        const month = now.toLocaleDateString('en-US', { month: 'long' });
+        const date = now.getDate();
+        const suffix = (date % 10 === 1 && date !== 11) ? 'st' :
+                       (date % 10 === 2 && date !== 12) ? 'nd' :
+                       (date % 10 === 3 && date !== 13) ? 'rd' : 'th';
+        const formattedTime = now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+        const formattedTimestamp = `${dayOfWeek}, ${month} ${date}${suffix}: ${formattedTime}`;
+        timestampElement.textContent = formattedTimestamp;
+      }
+      document.addEventListener('DOMContentLoaded', () => {
+        const container = document.getElementById('weather-info-container');
+        stationIds.forEach((stationId, index) => {
+          if (!disabledStations.includes(stationId)) {
+            const nameDiv = document.createElement('div');
+            nameDiv.id = `station-name-${index + 1}`;
+            nameDiv.classList.add('weather-card');
+            container.appendChild(nameDiv);
+            const tempDiv = document.createElement('div');
+            tempDiv.id = `temperature-${index + 1}`;
+            tempDiv.classList.add('weather-card');
+            container.appendChild(tempDiv);
+          }
+        });
+        updateWeather();
+        setInterval(updateWeather, 5 * 60 * 1000);
+        updateTimestamp();
+        setInterval(updateTimestamp, 60 * 1000);
+      });
+      /********************
+       * RE-ADDED WEATHER TEXT BOXES
+       ********************/
+      function createDraggableTextBox(id, top, left, styles) {
+        const div = document.createElement('div');
+        div.classList.add('weather-card');
+        div.id = id;
+        div.style.position = "absolute";
+        div.style.top = top;
+        div.style.left = left;
+        const img = document.createElement('img');
+        img.id = id + "-img";
+        // Use a 1x1 transparent PNG as a placeholder
+        img.src = "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADElEQVQImWP4////fwAJ+AL+pKXyYQAAAABJRU5ErkJggg==";
+        img.alt = "Weather Text";
+        div.appendChild(img);
+        const select = document.createElement('select');
+        const optionNone = document.createElement('option');
+        optionNone.value = "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADElEQVQImWP4////fwAJ+AL+pKXyYQAAAABJRU5ErkJggg==";
+        optionNone.textContent = "None";
+        select.appendChild(optionNone);
+        select.addEventListener('mousedown', function(e){ e.stopPropagation(); });
+        select.addEventListener('change', function(){
+          img.src = this.value;
+        });
+        div.appendChild(select);
+        Object.assign(div.style, {
+          fontFamily: styles.font,
+          fontSize: styles.size,
+          color: styles.color,
+          width: styles.width,
+          height: styles.height
+        });
+        container.appendChild(div);
+        makeDraggable(div, id);
+      }
+      const textBoxPositions = [
+        { top: "80%", left: "10%" },
+        { top: "80%", left: "30%" },
+        { top: "80%", left: "50%" },
+        { top: "80%", left: "70%" }
+      ];
+      for (let i = 0; i < textBoxPositions.length; i++) {
+        const pos = textBoxPositions[i];
+        createDraggableTextBox(
+          "textbox-" + i,
+          pos.top,
+          pos.left,
+          { font: "Overpass Black", size: "2em", color: "#FFFFFF", width: "200px", height: "100px" }
+        );
+      }
+      function overrideTemperature(box) {
+        const newTemp = prompt("Enter new temperature:", box.textContent);
+        if (newTemp !== null) {
+          box.textContent = newTemp;
+        }
+      }
+      const tooltip = document.getElementById('customTooltip');
+      const daysArr = ["SUN", "MON", "TUE", "WED", "THU", "FRI", "SAT"];
+      let today = new Date().getDay();
+      const overrideSavedPositions = true;
+      function createLockedElement(id, text, top, left, styles) {
+        const div = document.createElement('div');
+        div.classList.add('weather-card');
+        div.id = id;
+        div.setAttribute('contenteditable', 'true');
+        div.textContent = text;
+        if (id.startsWith("temp-")) {
+          div.classList.add('temperature');
+          div.dataset.type = 'temperature';
+          div.addEventListener("click", () => { overrideTemperature(div); });
+        } else {
+          div.dataset.type = 'day';
+        }
+        div.addEventListener("mouseenter", showTooltip);
+        div.addEventListener("mousemove", showTooltip);
+        div.addEventListener("mouseleave", hideTooltip);
+        let savedPosition = null;
+        if (!overrideSavedPositions) {
+          savedPosition = JSON.parse(localStorage.getItem(id));
+        }
+        if (savedPosition) {
+          div.style.top = savedPosition.top;
+          div.style.left = savedPosition.left;
+        } else {
+          div.style.top = top;
+          div.style.left = left;
+        }
+        Object.assign(div.style, {
+          fontFamily: styles.font,
+          fontSize: styles.size,
+          color: styles.color,
+          width: styles.width,
+          height: styles.height,
+          position: "absolute"
+        });
+        if (div.dataset.type === 'day' && (text.trim() === "SAT" || text.trim() === "SUN")) {
+          div.style.color = "yellow";
+        }
+        container.appendChild(div);
+      }
+      const temperatureBoxPositions = [
+        { top: "61.161%", left: "8.54614%" },
+        { top: "61.161%", left: "20.2063%" },
+        { top: "61.161%", left: "31.6882%" },
+        { top: "61.161%", left: "43.4351%" },
+        { top: "61.161%", left: "55.4175%" },
+        { top: "61.161%", left: "66.7944%" },
+        { top: "61.161%", left: "78.3936%" },
+        { top: "73.1901%", left: "14.3799%" },
+        { top: "73.1901%", left: "26.0205%" },
+        { top: "73.1901%", left: "37.3486%" },
+        { top: "73.1901%", left: "49.2407%" },
+        { top: "73.1901%", left: "61.3293%" },
+        { top: "73.1901%", left: "72.6855%" }
+      ];
+      const dayBoxPositions = [
+        { top: "26.5755%", left: "8.64624%" },
+        { top: "26.5755%", left: "20.4712%" },
+        { top: "26.5755%", left: "32.2656%" },
+        { top: "26.5755%", left: "43.9539%" },
+        { top: "26.5755%", left: "55.5737%" },
+        { top: "26.5755%", left: "67.2925%" },
+        { top: "26.5755%", left: "78.9331%" }
+      ];
+      for (let i = 0; i < temperatureBoxPositions.length; i++) {
+        const pos = temperatureBoxPositions[i];
+        createLockedElement(
+          `temp-${i}`,
+          "temp" + i,
+          pos.top,
+          pos.left,
+          { font: "Overpass Black", size: "3.5em", color: "#FFFFFF", width: "160px", height: "70px" }
+        );
+      }
+      for (let i = 0; i < dayBoxPositions.length; i++) {
+        let dayIndex = (today + i) % 7;
+        const pos = dayBoxPositions[i];
+        createLockedElement(
+          `day-${i}`,
+          daysArr[dayIndex],
+          pos.top,
+          pos.left,
+          { font: "Overpass Black", size: "2.5em", color: "#FFFFFF", width: "160px", height: "70px" }
+        );
+      }
+      function showTooltip(e) {
+        tooltip.textContent = `Top: ${e.currentTarget.style.top}, Left: ${e.currentTarget.style.left}`;
+        tooltip.style.display = "block";
+        tooltip.style.top = (e.clientY + 10) + "px";
+        tooltip.style.left = (e.clientX + 10) + "px";
+      }
+      function hideTooltip(e) {
+        tooltip.style.display = "none";
+      }
+      function makeDraggable(item, id) {
+        let wasDragged = false;
+        item.addEventListener('click', function(e) {
+          if (wasDragged) {
+            e.stopPropagation();
+            e.preventDefault();
+            wasDragged = false;
+          }
+        });
+        item.onmousedown = function(event) {
+          if (event.target.closest('select')) return;
+          event.preventDefault();
+          const containerRect = container.getBoundingClientRect();
+          const startRect = item.getBoundingClientRect();
+          let shiftX = event.clientX - startRect.left;
+          let shiftY = event.clientY - startRect.top;
+          function moveAt(pageX, pageY) {
+            let newX = pageX - shiftX - containerRect.left;
+            let newY = pageY - shiftY - containerRect.top;
+            newX = Math.max(0, Math.min(containerRect.width - item.offsetWidth, newX));
+            newY = Math.max(0, Math.min(containerRect.height - item.offsetHeight, newY));
+            let newXPercent = (newX / containerRect.width) * 100;
+            let newYPercent = (newY / containerRect.height) * 100;
+            item.style.left = newXPercent + '%';
+            item.style.top = newYPercent + '%';
+          }
+          function onMouseMove(e) {
+            moveAt(e.pageX, e.pageY);
+          }
+          document.addEventListener('mousemove', onMouseMove);
+          item.onmouseup = function() {
+            document.removeEventListener('mousemove', onMouseMove);
+            item.onmouseup = null;
+            wasDragged = true;
+            localStorage.setItem(id, JSON.stringify({
+              top: item.style.top,
+              left: item.style.left
+            }));
+          };
+        };
+        item.ondragstart = function() { return false; };
+      }
+      document.querySelectorAll('.weather-card').forEach(el => {
+        makeDraggable(el, el.id);
+      });
+      /********** END ORIGINAL SCRIPT CODE **********/
+
+      /********** RIGHT-CLICK IMAGE CAPTURE CODE **********/
+      // Attach a contextmenu event on the document. If the target is inside #map-container, capture it.
+      document.addEventListener('contextmenu', function(e) {
+        if (!document.getElementById('map-container').contains(e.target)) return;
+        e.preventDefault();
+        console.log("Right-click event captured");
+        const mapContainer = document.getElementById('map-container');
+        const originalTransform = mapContainer.style.transform;
+        mapContainer.style.transform = 'none';
+        html2canvas(mapContainer, { useCORS: true, scale: 1 })
+          .then(function(canvas) {
+            mapContainer.style.transform = originalTransform;
+            const dataURL = canvas.toDataURL('image/png');
+            const overlayDiv = document.createElement('div');
+            overlayDiv.style.position = 'fixed';
+            overlayDiv.style.top = 0;
+            overlayDiv.style.left = 0;
+            overlayDiv.style.width = '100%';
+            overlayDiv.style.height = '100%';
+            overlayDiv.style.backgroundColor = 'rgba(0,0,0,0.85)';
+            overlayDiv.style.display = 'flex';
+            overlayDiv.style.alignItems = 'center';
+            overlayDiv.style.justifyContent = 'center';
+            overlayDiv.style.zIndex = 9999;
+            overlayDiv.addEventListener('click', function() {
+              document.body.removeChild(overlayDiv);
+            });
+            const img = document.createElement('img');
+            img.src = dataURL;
+            img.alt = 'Captured Image';
+            overlayDiv.appendChild(img);
+            document.body.appendChild(overlayDiv);
+          })
+          .catch(function(error) {
+            console.error("Error capturing container:", error);
+          });
+      }, true);
+      /********** END RIGHT-CLICK CODE **********/
+    })();
+  </script>
+  
+  <!-- Tooltip element -->
+  <div id="customTooltip"></div>
+  
+</body>
+</html>
