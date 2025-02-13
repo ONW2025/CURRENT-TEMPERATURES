@@ -1,0 +1,393 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Weather Information</title>
+
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Overpass:wght@900&display=swap');
+
+    * {
+      font-family: 'Overpass Black', sans-serif !important;
+    }
+
+    body {
+      margin: 0;
+      display: block;
+      background-image: url('blank map tyler (1).png');
+      background-size: 85%; /* Adjusted size to make it 15% smaller */
+      background-position: center;
+      background-attachment: fixed;
+      background-repeat: no-repeat;
+      color: white;
+      height: 100vh;
+    }
+
+    #weather-info-container {
+      position: relative;
+      height: 100vh;
+    }
+
+    .weather-card {
+      font-size: 1.5em;
+      text-shadow: 3px 1px 1px rgba(0, 0, 0, 0.7);
+      -webkit-text-stroke: 0.0px black;
+      color: white;
+      padding: 20px;
+      margin: 10px;
+      text-align: center;
+      background: rgba(0, 0, 0, 0);
+      border-radius: 10px;
+      position: absolute;
+      display: flex;
+      flex-direction: column; /* Stack items vertically */
+      align-items: center; /* Center horizontally */
+      justify-content: flex-start; /* Align items from the top */
+      width: 200px; /* Fixed width */
+      height: auto;
+    }
+
+    /* City (station) name card styling */
+    .station-name-card {
+      font-size: 1.0em;
+      text-shadow: 1px 1px 10px rgba(0, 0, 0, 3), 1px 10px 10px rgba(0, 0, 0, 5); /* Glow effect */
+      margin-bottom: 10px;
+      position: relative; /* Needed for absolute positioning of child elements */
+      overflow: visible;
+    }
+
+    /* Wrap the city text so that we can layer the edit button on top */
+    .station-text {
+      position: relative;
+      z-index: 1;
+    }
+
+    /* Edit button and input styles (hidden by default, then appear on hover) */
+    .station-name-card .edit-temp-btn,
+    .station-name-card .temp-edit-input {
+      display: none;
+    }
+
+    .station-name-card:hover .edit-temp-btn,
+    .station-name-card:hover .temp-edit-input {
+      display: inline-block;
+    }
+
+    .station-name-card .edit-temp-btn {
+      position: absolute;
+      top: 0;
+      right: 0;
+      z-index: 2;
+      background-color: rgba(255, 255, 255, 0.3);
+      border: 1px solid white;
+      color: white;
+      cursor: pointer;
+      padding: 3px 6px;
+      font-size: 0.8em;
+    }
+
+    .station-name-card .temp-edit-input {
+      position: absolute;
+      top: 100%;
+      right: 0;
+      z-index: 2;
+      margin-top: 2px;
+      padding: 5px;
+      border: 1px solid #ccc;
+      font-size: 0.9em;
+      text-align: center;
+      width: 60px;
+    }
+
+    .temperature-card {
+      font-family: 'Roboto', sans-serif;
+      font-size: 2em;
+      text-shadow: 0 0 10px rgba(0, 0, 0, 3), 0 0 10px rgba(0, 0, 0, 5); /* Glow effect */
+      color: white;
+      margin-top: 25px;
+      position: relative;
+    }
+
+    .temperature-card .degree-symbol {
+      font-size: 0.8em;
+      vertical-align: 8px;
+      margin-left: -12px;
+      position: relative;
+    }
+
+    .rename-input {
+      background: rgba(255, 255, 255, 0.7);
+      border: none;
+      padding: 5px;
+      margin-top: 10px;
+      width: 100%;
+      font-size: 1em;
+      text-align: center;
+    }
+
+    #timestamp {
+      position: absolute;
+      bottom: 823px;
+      left: 380px;
+      font-family: 'Overpass', sans-serif;
+      font-size: 1.5em;
+      color: white;
+      text-shadow: 0 0 10px rgba(0, 0, 0, 3), 0 0 10px rgba(0, 0, 0, 5);
+      background-color: rgba(0, 0, 0, 0);
+      padding: 10px 20px;
+      border-radius: 5px;
+      text-align: left;
+    }
+  </style>
+</head>
+<body>
+
+  <div id="weather-info-container"></div>
+  <div id="timestamp"></div>
+
+  <script>
+    // Your API key and station IDs
+    const apiKey = '8caa9f6756a74d03aa9f6756a79d03a3';
+    const stationIds = [
+      'KOHCHILL102', 'KOHCOLUM839', 'KOHDAYTO48', 'KOHCINCI470', 'KOHGALLI12', 'KOHTOLED157', 'KOHCLEVE358', 'KOHYOUNG19', 'KOHSAINT20', 'KOHMARIE95',
+      'KOHDEFIA24', 'KOHCELIN50', 'KOHLIMA26', 'KOHFINDL57', 'KOHBELLE16', 'KOHMARIO107', 'KOHWILMI89', 'KOHGEORG3', 'KOHPORTS28', 'KOHLOGAN27',
+      'KOHZANES81', 'KOHMOUNT134', 'KOHMANSF8', 'KOHSANDU69', 'KOHASHTA21', 'KOHAKRON234', 'KOHCANTO106', 'KOHCOSHO14'
+    ];
+
+    // Mapping station IDs to human-readable names
+    const stationNames = {
+      'KOHCHILL102': 'Chillicothe',
+      'KOHCOLUM839': 'Columbus',
+      'KOHDAYTO48': 'Dayton',
+      'KOHCINCI470': 'Cincinnati',
+      'KOHGALLI12': 'Gallipolis',
+      'KOHTOLED157': 'Toledo',
+      'KOHCLEVE358': 'Cleveland',
+      'KOHYOUNG19': 'Youngstown',
+      'KOHSAINT20': 'St. Clairsville',
+      'KOHMARIE95': 'Marietta',
+      'KOHDEFIA24': 'Defiance',
+      'KOHCELIN50': 'Celina',
+      'KOHLIMA26': 'Lima',
+      'KOHFINDL57': 'Findlay',
+      'KOHBELLE16': 'Bellefontaine',
+      'KOHMARIO107': 'Marion',
+      'KOHWILMI89': 'Wilmington',
+      'KOHGEORG3': 'Georgetown',
+      'KOHPORTS28': 'Portsmouth',
+      'KOHLOGAN27': 'Logan',
+      'KOHZANES81': 'Zanesville',
+      'KOHMOUNT134': 'Mt. Vernon',
+      'KOHMANSF8': 'Mansfield',
+      'KOHSANDU69': 'Sandusky',
+      'KOHASHTA21': 'Ashtabula',
+      'KOHAKRON234': 'Akron',
+      'KOHCANTO106': 'Canton',
+      'KOHCOSHO14': 'Coshocton'
+    };
+
+    // Objects to store fetched and manual temperatures
+    const stationTemperatures = {};
+    const manualTemperatures = {};
+
+    // Define positions for each station (used for placing cards on the map)
+    const stationPositions = {
+      'KOHCHILL102': { top: '70%', left: '40%' },
+      'KOHCOLUM839': { top: '54%', left: '39.5%' },
+      'KOHDAYTO48': { top: '58.5%', left: '26.5%' },
+      'KOHCINCI470': { top: '74.5%', left: '23%' },
+      'KOHGALLI12': { top: '83.5%', left: '47.9%' },
+      'KOHTOLED157': { top: '7.5%', left: '34%' },
+      'KOHCLEVE358': { top: '11.5%', left: '53%' },
+      'KOHYOUNG19': { top: '23%', left: '64.5%' },
+      'KOHSAINT20': { top: '50%', left: '61.5%' },
+      'KOHMARIE95': { top: '67%', left: '56%' },
+      'KOHDEFIA24': { top: '17%', left: '25%' },
+      'KOHCELIN50': { top: '37%', left: '23%' },
+      'KOHLIMA26': { top: '32%', left: '27.5%' },
+      'KOHFINDL57': { top: '23%', left: '32.5%' },
+      'KOHBELLE16': { top: '42%', left: '31.5%' },
+      'KOHMARIO107': { top: '36%', left: '38%' },
+      'KOHWILMI89': { top: '68%', left: '31%' },
+      'KOHGEORG3': { top: '82.5%', left: '30.5%' },
+      'KOHPORTS28': { top: '85%', left: '40%' },
+      'KOHLOGAN27': { top: '65.0%', left: '46%' },
+      'KOHZANES81': { top: '54%', left: '50%' },
+      'KOHMOUNT134': { top: '42%', left: '45%' },
+      'KOHMANSF8': { top: '31%', left: '44.5%' },
+      'KOHSANDU69': { top: '13%', left: '43%' },
+      'KOHASHTA21': { top: '2%', left: '64%' },
+      'KOHAKRON234': { top: '23%', left: '54.9%' },
+      'KOHCANTO106': { top: '30.5%', left: '56.5%' },
+      'KOHCOSHO14': { top: '44.5%', left: '52%' }
+    };
+
+    // (Optional) List of disabled stations—you can remove or update this list
+    const disabledStations = [
+      'STATION3', 'STATION4', 'STATION5', 'STATION6', 'STATION7', 'STATION8', 'STATION9', 'STATION10',
+      'STATION11', 'STATION12', 'STATION13', 'STATION14', 'STATION15', 'STATION16', 'STATION17', 'STATION18',
+      'STATION19', 'STATION20', 'STATION21', 'STATION22', 'STATION23', 'STATION24', 'STATION25', 'STATION26',
+      'STATION27', 'STATION28'
+    ];
+
+    // Function to choose a color based on temperature
+    function getTemperatureColor(temp) {
+      if (temp <= 0) return 'rgb(244, 101, 255)';
+      if (temp <= 9) return 'rgb(184, 0, 200)';
+      if (temp <= 19) return 'rgb(0, 32, 224)';
+      if (temp <= 29) return 'rgb(0, 114, 255)';
+      if (temp <= 39) return 'rgb(67, 255, 253)';
+      if (temp <= 49) return 'rgb(156, 255, 0)';
+      if (temp <= 59) return 'rgb(255, 252, 0)';
+      if (temp <= 69) return 'rgb(255, 156, 0)';
+      if (temp <= 79) return 'rgb(255, 90, 0)';
+      if (temp <= 89) return 'rgb(255, 0, 0)';
+      if (temp <= 99) return 'rgb(160, 0, 0)';
+      return 'rgb(255, 129, 129)';
+    }
+
+    // Positions for degree symbol and temperature card adjustments
+    const degreeSymbolPosition = { top: '5px', left: '2px' };
+    const temperatureCardPosition = { top: '0px' };
+
+    // Function that fetches weather data for a given station ID
+    function fetchWeather(stationId) {
+      const apiUrl = `https://api.weather.com/v2/pws/observations/current?stationId=${stationId}&format=json&units=e&apiKey=${apiKey}`;
+      // Use fetch to get the JSON data
+      return fetch(apiUrl)
+        .then(response => {
+          if (!response.ok) {
+            throw new Error(`HTTP error! status: ${response.status}`);
+          }
+          return response.json();
+        })
+        .then(data => {
+          // Extract the first observation's temperature from the imperial units
+          const observation = data.observations[0];
+          const temp = observation.imperial.temp;
+          stationTemperatures[stationId] = { value: temp, color: getTemperatureColor(temp) };
+        })
+        .catch(error => {
+          console.error(`Error fetching weather for station ${stationId}:`, error);
+          stationTemperatures[stationId] = { value: 'N/A', color: 'white' };
+        });
+    }
+
+    // Update weather for all stations (excluding disabled ones)
+    async function updateWeather() {
+      const weatherPromises = stationIds
+        .filter(id => !disabledStations.includes(id))
+        .map(id => fetchWeather(id));
+      await Promise.all(weatherPromises);
+
+      stationIds.forEach((stationId, index) => {
+        if (disabledStations.includes(stationId)) return;
+
+        const stationNameElement = document.getElementById(`station-name-${index + 1}`);
+        const temperatureElement = document.getElementById(`temperature-${index + 1}`);
+        const { value, color } = stationTemperatures[stationId] || {};
+        const displayValue = (manualTemperatures[stationId] !== undefined)
+          ? manualTemperatures[stationId]
+          : (value || 'Loading...');
+
+        // Build the station name card with an edit button and input field.
+        stationNameElement.innerHTML = `
+          <div class="station-name-card">
+            <span class="station-text">${stationNames[stationId]}</span>
+            <button class="edit-temp-btn">Edit</button>
+            <input type="text" class="temp-edit-input" placeholder="Enter temp" />
+          </div>
+        `;
+        // Build the temperature card
+        temperatureElement.innerHTML = `
+          <div class="temperature-card" style="color: ${color}; top: ${temperatureCardPosition.top};">
+            <span class="temp-value">${displayValue}</span>
+            <span class="degree-symbol" style="top: ${degreeSymbolPosition.top}; left: ${degreeSymbolPosition.left};">°</span>
+          </div>
+        `;
+
+        // Set the positions for the station cards based on the stationPositions mapping
+        const { top, left } = stationPositions[stationId];
+        stationNameElement.style.top = top;
+        stationNameElement.style.left = left;
+        temperatureElement.style.top = top;
+        temperatureElement.style.left = left;
+
+        // Set up the editing functionality for manual temperature input.
+        const editButton = stationNameElement.querySelector('.edit-temp-btn');
+        const inputField = stationNameElement.querySelector('.temp-edit-input');
+        const tempCard = temperatureElement.firstElementChild;
+        const tempValueSpan = tempCard.querySelector('.temp-value');
+
+        editButton.addEventListener('click', () => {
+          inputField.style.display = 'inline-block';
+          inputField.value = tempValueSpan.textContent;
+          inputField.focus();
+        });
+
+        inputField.addEventListener('blur', () => {
+          let newTemp = inputField.value.trim();
+          if (newTemp !== '') {
+            manualTemperatures[stationId] = newTemp;
+            tempValueSpan.textContent = newTemp;
+            let numericTemp = parseFloat(newTemp);
+            if (!isNaN(numericTemp)) {
+              let newColor = getTemperatureColor(numericTemp);
+              tempCard.style.color = newColor;
+            }
+          }
+          inputField.style.display = 'none';
+        });
+
+        inputField.addEventListener('keydown', (e) => {
+          if (e.key === 'Enter') {
+            inputField.blur();
+          }
+        });
+      });
+    }
+
+    // Update the timestamp on the page
+    function updateTimestamp() {
+      const timestampElement = document.getElementById('timestamp');
+      const now = new Date();
+      const dayOfWeek = now.toLocaleDateString('en-US', { weekday: 'long' });
+      const month = now.toLocaleDateString('en-US', { month: 'long' });
+      const date = now.getDate();
+      const suffix = (date % 10 === 1 && date !== 11) ? 'st' :
+                     (date % 10 === 2 && date !== 12) ? 'nd' :
+                     (date % 10 === 3 && date !== 13) ? 'rd' : 'th';
+      const formattedTime = now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+      const formattedTimestamp = `${dayOfWeek}, ${month} ${date}${suffix}: ${formattedTime}`;
+      timestampElement.textContent = formattedTimestamp;
+    }
+
+    // Once the DOM is loaded, create the station cards and start updating weather and timestamps
+    document.addEventListener('DOMContentLoaded', () => {
+      const container = document.getElementById('weather-info-container');
+      stationIds.forEach((stationId, index) => {
+        if (!disabledStations.includes(stationId)) {
+          const nameDiv = document.createElement('div');
+          nameDiv.id = `station-name-${index + 1}`;
+          nameDiv.classList.add('weather-card');
+          container.appendChild(nameDiv);
+          
+          const tempDiv = document.createElement('div');
+          tempDiv.id = `temperature-${index + 1}`;
+          tempDiv.classList.add('weather-card');
+          container.appendChild(tempDiv);
+        }
+      });
+
+      updateWeather();
+      // Update weather every 5 minutes
+      setInterval(updateWeather, 5 * 60 * 1000);
+      updateTimestamp();
+      // Update the timestamp every minute
+      setInterval(updateTimestamp, 60 * 1000);
+    });
+  </script>
+
+</body>
+</html>
