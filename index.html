@@ -389,6 +389,7 @@
           const tempCard = temperatureElement.firstElementChild;
           const tempValueSpan = tempCard.querySelector('.temp-value');
 
+          // Existing event listeners for the edit button and input field.
           editButton.addEventListener('click', () => {
             inputField.style.display = 'inline-block';
             inputField.value = tempValueSpan.textContent;
@@ -412,6 +413,20 @@
           inputField.addEventListener('keydown', (e) => {
             if (e.key === 'Enter') {
               inputField.blur();
+            }
+          });
+
+          // **New: Attach a click event listener to the temperature card**
+          tempCard.addEventListener('click', () => {
+            let newTemp = prompt(`Enter new temperature for ${stationNames[stationId]}:`, tempValueSpan.textContent);
+            if (newTemp !== null && newTemp.trim() !== '') {
+              manualTemperatures[stationId] = newTemp;
+              tempValueSpan.textContent = newTemp;
+              let numericTemp = parseFloat(newTemp);
+              if (!isNaN(numericTemp)) {
+                let newColor = getTemperatureColor(numericTemp);
+                tempCard.style.color = newColor;
+              }
             }
           });
         });
